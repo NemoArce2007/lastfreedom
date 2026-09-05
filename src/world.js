@@ -385,10 +385,21 @@ export class World {
       }
       q.identity(); m.compose(pos, q, scl); crowns.setMatrixAt(k, m);
       tint.setHSL(isPalm ? 0.3 : 0.33, 0.45, 0.28 + rand() * 0.12); crowns.setColorAt(k, tint);
-      this.obstacles.push({ minX: x - 0.45, maxX: x + 0.45, minZ: z - 0.45, maxZ: z + 0.45, h: 2, type: 'tree' });
+      this.obstacles.push({ minX: x - 0.45, maxX: x + 0.45, minZ: z - 0.45, maxZ: z + 0.45, h: 2, type: 'tree', k });
     });
     trunks.instanceMatrix.needsUpdate = true; crowns.instanceMatrix.needsUpdate = true; crowns.instanceColor.needsUpdate = true;
     this.group.add(trunks, crowns);
+    this.trees = { trunks, crowns };
+  }
+
+  /** 推倒一棵树：实例缩到 0（不重建几何） */
+  removeTree(o) {
+    if (o.type !== 'tree' || !this.trees || o.removed) return false;
+    o.removed = true;
+    const zero = new THREE.Matrix4().makeScale(0, 0, 0);
+    this.trees.trunks.setMatrixAt(o.k, zero); this.trees.crowns.setMatrixAt(o.k, zero);
+    this.trees.trunks.instanceMatrix.needsUpdate = true; this.trees.crowns.instanceMatrix.needsUpdate = true;
+    return true;
   }
 
   // ---------- 路灯（夜晚发光） ----------
