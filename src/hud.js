@@ -53,6 +53,11 @@ export class HUD {
     el.querySelector('.cd > div').style.width = `${Math.round(ratio * 100)}%`;
     el.classList.toggle('ready', ready && !off); el.classList.toggle('off', off);
   }
+  setAbilityName(id, name) {
+    const el = this.abilityEls[id]; if (!el) return;
+    const span = el.querySelector('span');
+    if (span.textContent !== name) span.textContent = name;
+  }
 
   update(dt) {
     if (this.commentT > 0) { this.commentT -= dt; if (this.commentT <= 0) this.$('commentary').classList.remove('show'); }

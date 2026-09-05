@@ -13,6 +13,15 @@ import { CARS, QUOTES, pick } from './data.js';
 
 const CIVIL_COLORS = [0xcfd3d8, 0x2c2f36, 0x7a1f1f, 0x1f4d7a, 0xb8b8b8, 0x5a6b3a, 0xe0e0e0, 0x8a4b2a];
 
+// 狂暴（逃犯消星奖励）：可囤积道具，手动触发
+export const RAGE = {
+  dur: 15, maxCharges: 2,
+  speedMul: 1.2, accelMul: 1.3, massMul: 2.5,
+  heatMul: 1.5,          // 狂暴期被追踪时热度涨速
+  heatPerSmash: 0.03,    // 每推倒一物
+  heatPerLaunch: 0.04,   // 每撞飞一辆警车
+};
+
 export class Game {
   constructor({ renderer, role, map, car, audio, hud, onEnd }) {
     this.renderer = renderer; this.role = role; this.map = map; this.carDef = car;
@@ -28,7 +37,8 @@ export class Game {
     this.heli = null;
     this.stars = 2; this.heat = 0; this.evade = 0; this.seen = true; this.seenT = 0;
     this.lostT = 0; this.fugitiveVisible = true;
-    this.stats = { pits: 0, spikes: 0, topSpeed: 0, maxStars: 2, units: 0, dist: 0 };
+    this.stats = { pits: 0, spikes: 0, topSpeed: 0, maxStars: 2, units: 0, dist: 0, smashed: 0, launched: 0 };
+    this.rage = { charges: 0, t: 0 };   // t>0 表示狂暴中
     this.spawnT = 0; this.spikeT = 20; this.blockT = 30; this.commentT = 0; this.eliteSpawned = false;
     this.cool = { heli: 0, spike: 0, backup: 0, taser: 0 }; this.heliActiveT = 0;
     this.shake = 0;
@@ -45,7 +55,7 @@ export class Game {
     this.hud.setMapName(map.name);
     this.hud.setAbilities(role === 'police'
       ? [{ id: 'heli', key: 'H', name: '空中支援' }, { id: 'spike', key: 'B', name: '破胎器' }, { id: 'backup', key: 'U', name: '地面队友' }, { id: 'taser', key: 'T', name: '泰瑟枪' }]
-      : []);
+      : [{ id: 'rage', key: 'Shift', name: '狂暴 ×0' }]);
     if (this.theme.elite && role === 'police') this.spawnPolice(true, { elite: true, partner: true });
     this.updateCamera(0.1);
     this.render();   // 预热着色器
@@ -194,6 +204,7 @@ export class Game {
       if (e.code === 'KeyM') this.audio.setMuted(!this.audio.muted);
       if (e.code === 'Escape' && !this.over && this.started) { this.paused = !this.paused; document.getElementById('pause').classList.toggle('hidden', !this.paused); }
       if (this.role === 'police' && !this.over && !this.paused) this.policeAbility(e.code);
+      if (this.role === 'fugitive' && !this.over && !this.paused && (e.code === 'ShiftLeft' || e.code === 'ShiftRight')) this.activateRage();
       if (['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault();
     };
     this.onKeyUp = e => { this.keys[e.code] = false; };
@@ -223,6 +234,47 @@ export class Game {
         this.finish(true, '匹配成功', pick(QUOTES.arrested));
       } else { this.audio.blip(180, 0.15); this.hud.notice('泰瑟：需贴近低速目标', 1.2); c.taser = 1.5; }
     }
+  }
+
+  // ---------- 狂暴（逃犯） ----------
+  get rageActive() { return this.rage.t > 0; }
+
+  gainRage() {
+    if (this.rage.charges >= RAGE.maxCharges) { this.hud.notice('狂暴已满', 1.6); return; }
+    this.rage.charges++;
+    this.hud.notice(`获得 狂暴 ×${this.rage.charges}`, 2.2);
+    this.hud.comment(pick(QUOTES.rageGain), 3);
+    this.audio.blip(660, 0.12, 'sawtooth', 0.2); setTimeout(() => this.audio.blip(990, 0.18, 'sawtooth', 0.2), 110);
+  }
+
+  activateRage() {
+    if (this.rageActive || this.rage.charges <= 0) { this.audio.blip(200, 0.1); return; }
+    this.rage.charges--; this.rage.t = RAGE.dur;
+    const p = this.player;
+    p.speedMul = RAGE.speedMul; p.accelMul = RAGE.accelMul; p.mass = p.spec.mass * RAGE.massMul;
+    document.body.classList.add('rage');
+    this.bloom.strength += 0.25;
+    this.hud.notice('狂 暴 !', 1.8); this.hud.comment(pick(QUOTES.rage), 3.5);
+    this.audio.blip(160, 0.5, 'sawtooth', 0.35); this.audio.impact(12);
+    this.shake = 0.6;
+  }
+
+  endRage() {
+    this.rage.t = 0;
+    const p = this.player;
+    p.speedMul = 1; p.accelMul = 1; p.mass = p.spec.mass;
+    document.body.classList.remove('rage');
+    this.bloom.strength -= 0.25;
+    this.hud.notice('狂暴结束', 1.4); this.hud.comment(pick(QUOTES.rageEnd), 3);
+    this.audio.blip(330, 0.25, 'triangle');
+  }
+
+  updateRage(dt) {
+    if (this.role !== 'fugitive') return;
+    if (this.rageActive) { this.rage.t -= dt; if (this.rage.t <= 0) this.endRage(); }
+    const r = this.rage;
+    this.hud.updateAbility('rage', this.rageActive ? r.t / RAGE.dur : (r.charges > 0 ? 1 : 0), r.charges > 0 && !this.rageActive, r.charges === 0 && !this.rageActive);
+    this.hud.setAbilityName('rage', this.rageActive ? `狂暴中 ${Math.ceil(r.t)}s` : `狂暴 ×${r.charges}`);
   }
 
   readPlayerInput() {
@@ -256,6 +308,7 @@ export class Game {
         this.collisions(h);
       }
       this.updateSupport(dt);
+      this.updateRage(dt);
       this.updateRules(dt);
       this.updateStats(dt);
     }
@@ -287,15 +340,42 @@ export class Game {
     for (const t of this.traffic) t.ai.update(dt, this.vehicles);
   }
 
+  /** 狂暴期：玩家碾过的树直接推倒（不产生碰撞反力） */
+  smashTrees() {
+    const p = this.player; let n = 0;
+    for (const c of p.circles()) {
+      for (const o of this.grid.query(c.x, c.z, c.r + 0.6)) {
+        if (o.type !== 'tree') continue;
+        const nx = Math.max(o.minX, Math.min(c.x, o.maxX)), nz = Math.max(o.minZ, Math.min(c.z, o.maxZ));
+        if (Math.hypot(c.x - nx, c.z - nz) >= c.r + 0.4) continue;
+        if (!this.world.removeTree(o)) continue;
+        this.grid.remove(o); n++;
+        const cx = (o.minX + o.maxX) / 2, cz = (o.minZ + o.maxZ) / 2;
+        this.particles.burst(cx, 2.5, cz, 30, 0x3f8f3a, 7, 0.9);
+        this.particles.burst(cx, 1.0, cz, 14, 0x8b6b45, 5, 0.7);
+      }
+    }
+    if (!n) return;
+    this.stats.smashed += n;
+    this.heat = Math.min(1, this.heat + RAGE.heatPerSmash * n);
+    p.vel.multiplyScalar(Math.pow(0.96, n));
+    this.shake = Math.max(this.shake, 0.35);
+    this.audio.impact(6);
+    if (this.time - (this.smashCommentT || -9) > 5) { this.smashCommentT = this.time; this.hud.comment(pick(QUOTES.smash), 2.5); }
+  }
+
   collisions(dt) {
     const vs = this.vehicles;
+    const rage = this.rageActive;
+    if (rage) this.smashTrees();
     for (const v of vs) {
       const imp = collideWorld(v, this.grid, this.world.bounds);
       if (imp > 2.5) {
         const dmg = Math.min(30, (imp - 2.5) * (v.isPlayer || v === this.fugitive || v.tag === 'police' ? 0.45 : 0.3));
-        v.damage(dmg);
-        if (imp > 4) { this.particles.burst(v.pos.x, 0.8, v.pos.z, Math.min(40, imp * 3), 0xffc266, imp * 0.8, 0.6); this.audio.impact(imp * (v.isPlayer ? 1 : 0.4)); }
-        if (v.isPlayer) { this.shake = Math.min(1, imp / 12); if (imp > 10 && Math.random() < 0.5) this.hud.comment(pick(QUOTES.crash), 2.5); }
+        const shielded = rage && v.isPlayer;   // 狂暴期撞墙免伤
+        if (!shielded) v.damage(dmg);
+        if (imp > 4) { this.particles.burst(v.pos.x, 0.8, v.pos.z, Math.min(40, imp * (shielded ? 5 : 3)), shielded ? 0xff7a3d : 0xffc266, imp * 0.8, 0.6); this.audio.impact(imp * (v.isPlayer ? 1 : 0.4)); }
+        if (v.isPlayer) { this.shake = Math.min(1, imp / (shielded ? 20 : 12)); if (!shielded && imp > 10 && Math.random() < 0.5) this.hud.comment(pick(QUOTES.crash), 2.5); }
       }
     }
     for (let i = 0; i < vs.length; i++) for (let j = i + 1; j < vs.length; j++) {
@@ -303,16 +383,28 @@ export class Game {
       const imp = collideVehicles(a, b);
       if (imp > 2) {
         const dmg = Math.min(20, (imp - 2) * 0.35);
-        a.damage(dmg); b.damage(dmg);
+        const hitter = rage && (a.isPlayer ? a : (b.isPlayer ? b : null));   // 狂暴中的玩家
+        if (hitter) {
+          // 玩家免伤，对方吃双倍
+          const other = hitter === a ? b : a;
+          other.damage(dmg * 2);
+          other.angVel += (Math.random() < 0.5 ? -1 : 1) * Math.min(2.5, imp * 0.12);
+        } else { a.damage(dmg); b.damage(dmg); }
         const cx = (a.pos.x + b.pos.x) / 2, cz = (a.pos.z + b.pos.z) / 2;
-        if (imp > 3) { this.particles.burst(cx, 0.9, cz, Math.min(30, imp * 2.5), 0xffd27a, imp * 0.6, 0.5); this.audio.impact(imp * (a.isPlayer || b.isPlayer ? 1 : 0.35)); }
+        if (imp > 3) { this.particles.burst(cx, 0.9, cz, Math.min(30, imp * 2.5), hitter ? 0xff7a3d : 0xffd27a, imp * 0.6, 0.5); this.audio.impact(imp * (a.isPlayer || b.isPlayer ? 1 : 0.35)); }
         if (a.isPlayer || b.isPlayer) this.shake = Math.max(this.shake, Math.min(1, imp / 12));
         // 警车撞逃犯：热度上升 + PIT 统计
         const pol = a.tag === 'police' ? a : (b.tag === 'police' ? b : null);
         const fug = a === this.fugitive ? a : (b === this.fugitive ? b : null);
         if (pol && fug) {
           if (this.role === 'fugitive') this.heat = Math.min(1, this.heat + imp * 0.005);
-          if (Math.abs(fug.angVel) > 1.6 && imp > 3 && this.time - (this.lastPitT || 0) > 3) {
+          if (hitter && imp > 4 && this.time - (pol.launchT || -9) > 1.5) {
+            // 狂暴反撞：撞飞警车
+            pol.launchT = this.time; this.stats.launched++;
+            this.heat = Math.min(1, this.heat + RAGE.heatPerLaunch);
+            this.hud.notice('撞 飞 !', 1.2); this.hud.comment(pick(QUOTES.launch), 2.5);
+            this.audio.blip(120, 0.3, 'sawtooth', 0.3);
+          } else if (!hitter && Math.abs(fug.angVel) > 1.6 && imp > 3 && this.time - (this.lastPitT || 0) > 3) {
             this.lastPitT = this.time; this.stats.pits++;
             this.hud.notice('PIT!', 1.4); this.hud.comment(pick(QUOTES.pit), 2.5);
           }
@@ -403,7 +495,7 @@ export class Game {
       // ---- 逃犯规则 ----
       if (seen) {
         this.seenT += dt;
-        this.heat = Math.min(1, this.heat + dt / (34 + this.stars * 8));
+        this.heat = Math.min(1, this.heat + dt / (34 + this.stars * 8) * (this.rageActive ? RAGE.heatMul : 1));
         this.evade = Math.max(0, this.evade - dt * 0.6);
         if (this.heat >= 1 && this.stars < 5) {
           this.stars++; this.heat = 0; this.stats.maxStars = Math.max(this.stats.maxStars, this.stars);
@@ -418,6 +510,7 @@ export class Game {
           if (this.stars <= 0) { this.finish(true, '最后的自由', pick(QUOTES.escaped)); return; }
           this.hud.notice(`消星：${this.stars} 星`, 2); this.hud.comment(pick(QUOTES.starDown));
           this.audio.blip(440, 0.25, 'triangle');
+          setTimeout(() => { if (!this.over && !this.disposed) this.gainRage(); }, 900);   // 消星奖励：狂暴道具
           // 消星后远处警车撤离一部分
           const far = this.police.filter(p => p.pos.distanceTo(f.pos) > 150);
           for (const p of far.slice(0, 2)) { this.removeVehicle(p); this.police.splice(this.police.indexOf(p), 1); }
@@ -520,11 +613,12 @@ export class Game {
     this.over = true;
     this.hud.comment(sub, 8);
     this.audio.stopAll();
-    setTimeout(() => this.onEnd({ win, title, sub, stats: { ...this.stats, time: this.time, stars: this.stars } }), 1800);
+    setTimeout(() => this.onEnd({ win, title, sub, stats: { ...this.stats, time: this.time, stars: this.stars, role: this.role } }), 1800);
   }
 
   dispose() {
     removeEventListener('keydown', this.onKeyDown); removeEventListener('keyup', this.onKeyUp);
+    this.disposed = true; document.body.classList.remove('rage');
     for (const v of this.vehicles) { this.scene.remove(v.mesh); v.dispose(); }
     for (const s of this.spikes) s.dispose();
     if (this.heli) this.heli.dispose();

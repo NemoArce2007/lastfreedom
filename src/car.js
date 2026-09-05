@@ -47,6 +47,7 @@ export class Vehicle {
     this.dmgCooldown = 0;
     this.mass = this.spec.mass;
     this.inertia = this.mass * (this.spec.len ** 2 + this.spec.wid ** 2) / 12;
+    this.speedMul = 1; this.accelMul = 1;   // 狂暴等临时增益
     this.radius = this.spec.wid * 0.56;
     this.axleOffset = this.spec.len * 0.27;
     this.flashT = 0;
@@ -192,17 +193,18 @@ export class Vehicle {
     let vf = this.vel.dot(f);
     let vr = this.vel.dot(r);
     const flats = this.flatTires;
-    const topSpeed = s.topSpeed * (1 - 0.12 * flats) * (this.health < 30 ? 0.85 : 1);
-    const k = s.accel / topSpeed;
+    const topSpeed = s.topSpeed * this.speedMul * (1 - 0.12 * flats) * (this.health < 30 ? 0.85 : 1);
+    const accel = s.accel * this.accelMul;
+    const k = accel / topSpeed;
     const { throttle, steer, handbrake } = this.input;
 
     // 纵向：发动机 / 刹车 / 倒车
     if (throttle > 0.01) {
-      vf += (s.accel * throttle - k * Math.max(0, vf)) * dt;
+      vf += (accel * throttle - k * Math.max(0, vf)) * dt;
       if (vf > topSpeed) vf = THREE.MathUtils.lerp(vf, topSpeed, dt * 2);
     } else if (throttle < -0.01) {
       if (vf > 0.5) vf -= s.brake * -throttle * dt;
-      else vf = Math.max(vf - s.accel * 0.5 * -throttle * dt, -s.topSpeed * 0.25);
+      else vf = Math.max(vf - accel * 0.5 * -throttle * dt, -s.topSpeed * 0.25);
     } else {
       // 滑行阻力
       const dec = (1.6 + k * Math.abs(vf) * 0.6) * dt;

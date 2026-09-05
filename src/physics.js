@@ -15,6 +15,15 @@ export class ObstacleGrid {
       }
     }
   }
+  remove(o) {
+    const x0 = Math.floor(o.minX / CELL), x1 = Math.floor(o.maxX / CELL);
+    const z0 = Math.floor(o.minZ / CELL), z1 = Math.floor(o.maxZ / CELL);
+    for (let x = x0; x <= x1; x++) for (let z = z0; z <= z1; z++) {
+      const arr = this.cells.get(x * 100003 + z);
+      if (!arr) continue;
+      const i = arr.indexOf(o); if (i >= 0) arr.splice(i, 1);
+    }
+  }
   query(x, z, r, out = []) {
     out.length = 0;
     const x0 = Math.floor((x - r) / CELL), x1 = Math.floor((x + r) / CELL);

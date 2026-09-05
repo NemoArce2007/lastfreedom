@@ -96,6 +96,11 @@ function showResult({ win, title, sub, stats }) {
     ['最高星级', stars(stats.maxStars)],
     ['出动警力', stats.units],
     ['结局', win ? '胜利' : '失败'],
+    ...(stats.role === 'fugitive' ? [
+      ['推倒树木', stats.smashed],
+      ['撞飞警车', stats.launched],
+      ['混乱值', stats.smashed * 10 + stats.launched * 50],
+    ] : []),
   ].map(([k, v]) => `<div><b>${v}</b>${k}</div>`).join('');
   $('result').classList.remove('hidden');
 }
