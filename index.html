@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>最后的自由 · LAST FREEDOM</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%231a0b3a'/%3E%3Ctext x='32' y='46' font-size='40' text-anchor='middle' fill='%23f7c948'%3E%E2%98%85%3C/text%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <!-- ====== 主菜单 ====== -->
+  <div id="menu" class="screen">
+    <div class="menu-bg"></div>
+    <div class="palms"></div>
+    <header class="title-block">
+      <div class="title-cn">最后的自由</div>
+      <div class="title-en">LAST FREEDOM</div>
+      <div class="tribute">致敬 B站 UP主 <a href="https://space.bilibili.com/1745143606" target="_blank" rel="noopener">争取最后的自由</a> · 警灯一开，悠哉悠哉</div>
+    </header>
+
+    <section class="panel">
+      <div class="col">
+        <h3>01 · 选择身份</h3>
+        <div id="roleList" class="cards"></div>
+      </div>
+      <div class="col">
+        <h3>02 · 选择战场</h3>
+        <div id="mapList" class="cards"></div>
+      </div>
+      <div class="col">
+        <h3>03 · 选择战车</h3>
+        <div id="carList" class="cards"></div>
+      </div>
+    </section>
+
+    <footer class="menu-footer">
+      <div class="controls-hint">
+        <b>操作</b> WASD / 方向键 驾驭 · 空格 手刹 · C 切换镜头 · M 静音 · Esc 暂停
+        <span id="roleHint"></span>
+      </div>
+      <button id="startBtn" class="start-btn">发车 · 匹配开始</button>
+    </footer>
+  </div>
+
+  <!-- ====== 战力展示 ====== -->
+  <div id="powerCard" class="screen hidden">
+    <div class="power-title">战 力 展 示</div>
+    <div class="power-row">
+      <div class="power-side" id="powerLeft"></div>
+      <div class="power-vs">VS</div>
+      <div class="power-side" id="powerRight"></div>
+    </div>
+    <div class="power-quote" id="powerQuote"></div>
+    <div class="power-count" id="powerCount">3</div>
+  </div>
+
+  <!-- ====== HUD ====== -->
+  <div id="hud" class="hidden">
+    <canvas id="minimap" width="220" height="220"></canvas>
+    <div id="mapName" class="map-name"></div>
+
+    <div id="wanted" class="wanted">
+      <div id="stars" class="stars"></div>
+      <div class="bar"><div id="heatBar" class="bar-fill heat"></div></div>
+      <div class="bar"><div id="evadeBar" class="bar-fill evade"></div></div>
+      <div id="wantedLabel" class="wanted-label"></div>
+    </div>
+
+    <div id="commentary" class="commentary"></div>
+
+    <div id="speedo" class="speedo">
+      <div id="speed" class="speed">0</div>
+      <div class="unit">km/h</div>
+      <div class="hp-wrap"><div id="hp" class="hp"></div></div>
+      <div id="tires" class="tires">● ● ● ●</div>
+    </div>
+
+    <div id="abilities" class="abilities"></div>
+
+    <div id="cat" class="cat" title="猫猫摇">🐱</div>
+    <div id="timer" class="timer">00:00</div>
+    <div id="notice" class="notice"></div>
+  </div>
+
+  <!-- ====== 结算 ====== -->
+  <div id="result" class="screen hidden">
+    <div id="resultTitle" class="result-title"></div>
+    <div id="resultSub" class="result-sub"></div>
+    <div id="resultStats" class="result-stats"></div>
+    <button id="againBtn" class="start-btn">再来一局</button>
+  </div>
+
+  <!-- ====== 暂停 ====== -->
+  <div id="pause" class="screen hidden">
+    <div class="result-title">暂 停</div>
+    <div class="result-sub">Esc 继续 · 或返回主菜单</div>
+    <button id="resumeBtn" class="start-btn">继续追逐</button>
+    <button id="quitBtn" class="start-btn ghost">回到主菜单</button>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

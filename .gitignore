@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+.env.*
+*.log
+.firecrawl/
+.DS_Store
+Thumbs.db
